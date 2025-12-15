@@ -53,8 +53,16 @@ const TASK_INSTANCE_SCHEMA = {
 } as const;
 
 export class TaskInstanceStore {
-  private readonly baseDir = path.join(process.cwd(), 'task-instances');
-  private readonly templateStore = new TaskTemplateStore();
+  private readonly baseDir: string;
+  private readonly templateStore: TaskTemplateStore;
+
+  constructor(
+    templateStore: TaskTemplateStore,
+    baseDir = path.join(process.cwd(), 'task-instances')
+  ) {
+    this.templateStore = templateStore;
+    this.baseDir = baseDir;
+  }
 
   /**
    * Returns the directory path for a project's instances.

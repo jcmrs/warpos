@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "warpos": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "dist/index.js"
+      ],
+      "env": {
+        "DEVPACK_CODING_PLAN_API_KEY": "YOUR_API_KEY_HERE"
+      }
+    }
+  }
+}

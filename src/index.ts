@@ -33,8 +33,9 @@ const server = new Server(
 const domainProfiles = new DomainProfileStore();
 const mcdStore = new McdStore();
 const taskTemplates = new TaskTemplateStore();
-const taskInstances = new TaskInstanceStore();
-const taskExecutor = new TaskExecutor();
+const taskInstances = new TaskInstanceStore(taskTemplates);
+const plansDir = path.join(process.cwd(), '.warpos', 'plans');
+const taskExecutor = new TaskExecutor(taskInstances, taskTemplates, domainProfiles, plansDir);
 
 function asNonEmptyString(v: unknown, label: string): string {
   if (typeof v !== 'string' || v.trim().length === 0) {

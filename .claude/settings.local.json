@@ -36,7 +36,14 @@
       "Bash(git init:*)",
       "Bash(git remote add:*)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "mcp__serena__find_symbol",
+      "Bash(npm run test:coverage:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

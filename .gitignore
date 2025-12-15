@@ -12,6 +12,9 @@ yarn-error.log*
 # env
 .env
 
+# MCP configuration with API keys
+.mcp.json
+
 # warpos staging area
 .warpos/
 
@@ -22,3 +25,9 @@ Thumbs.db
 # editors
 .vscode/
 .idea/
+
+# test coverage
+coverage/
+
+# temp files
+nul
