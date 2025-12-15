@@ -1,0 +1,697 @@
+For Project "warpos" (C:\Development\warpos) we need to build an MCP Server as a plugin/tool that calls z.ai using my Devpack coding plan api key for purposes of Planning in / with Warp, Automated Orchestration in / with Warp, in order to integrate the concept of "code execution with MCP" so that use of Warp is minimal (free plan, context window) as specified, and all other proceses take place within the MCP, utilising various Domain Profile Agents and Task Profile Agents within the MCP.
+Choose project location and create directory
+cd into project directory (Set-Location)
+Initialize git repository
+Scaffold MCP Server project structure
+Add minimal runnable entrypoint + config
+Open code review pane
+Initialize project
+Set-Location 'C:\Development\warpos'; npm run build
+
+> warpos@0.1.0 build
+> tsc -p tsconfig.json
+
+Project created at C:\Development\warpos, and I cd’d into it (Set-Location C:\Development\warpos) and left the shell there.
+
+What’s been initialized/scaffolded:
+•  git init in C:\Development\warpos
+•  Node + TypeScript MCP server skeleton (stdio transport) with a sample tool zai_plan
+•  Env + config files: .env.example, .gitignore, tsconfig.json, package.json
+•  Source: src/index.ts, src/zaiClient.ts
+•  Dependencies installed and npm run build succeeds
+
+The last two required steps are complete:
+•  Opened the code review pane
+•  Initialized the project via Warp tooling
+C:\Development\warpos
+/init
+I’m going to scan the repo for existing Warp/AI rules and the docs that usually define build/lint/test commands (e.g., README.md, package.json, Makefile, etc.), then draft WARP.md based on what’s actually present.
+C:\Development\warpos\README.md
+C:\Development\warpos\package.json
+C:\Development\warpos\tsconfig.json
+C:\Development\warpos\src\index.ts
+C:\Development\warpos\src\zaiClient.ts
+C:\Development\warpos\.env.example
+C:\Development\warpos\.gitignore
+Manage AI Autonomy permissions
+C:\Development\warpos
+z.ai api key is now set in .env
+With the key in .env, you can now run the MCP server without exporting env vars manually:
+
+•  Dev (runs TS directly):
+pwsh
+•  Production-ish (compile then run):
+pwsh
+If the key is missing/incorrect you’ll see the thrown error from src/zaiClient.ts on stderr; otherwise the process will just sit and wait for MCP (stdio) requests.
+
+If you want, I can add a tiny scripts/smoke.mjs that sends a minimal MCP tools/list + tools/call request over stdio so you can verify zai_plan from the terminal without needing Warp to connect.
+C:\Development\warpos
+The README.md is missing a section: what json to add to warp settings in order to add the mcp to warp
+C:\Development\warpos
+question: I see the MCP does not make use of uv for creation of a virtual environment. was this a design choice? 
+Yes—implicitly it’s a design choice, but more accurately: uv (Python virtualenv tooling) isn’t relevant to this MCP because this repo is a Node/TypeScript MCP server, not a Python one.
+
+Evidence in this repo:
+•  package.json defines the build/run flow (tsc, node dist/index.js, ts-node).
+•  Dependencies are managed via npm (node_modules/), not pip.
+
+So there’s no virtual environment step because:
+•  Node projects don’t use Python virtualenvs; the “environment isolation” equivalent is node_modules + a lockfile (package-lock.json).
+•  Warp can launch MCP servers using a command like npm start, which expects Node + installed deps, not a Python runtime.
+
+If you did want a Python-based MCP server in a different repo, then using uv to manage a venv can be a good approach—but for this particular codebase it would be unnecessary overhead unless you’re embedding Python tooling for some reason.
+C:\Development\warpos
+follow-up question: if this was a design choice, then please explain what your proposal is for implementation of Domain Profile Agents and Task Profile Agents as MCP tools. Reasoning: as a non-technical user I would have expect python -> z.ai sdk / pydantic. so I am surprised by your design choice and curious about your strategy and proposal.
+The “Node/TypeScript MCP server” choice here is mainly about integration + packaging, not about Python being bad:
+
+•  Warp’s MCP ecosystem and the official MCP SDK are very straightforward in Node, and shipping a single npm install && npm start stdio server is low-friction.
+•  TypeScript can still give you strong schemas and validation; you don’t need Pydantic to get structured tool I/O and structured model outputs (though Pydantic is excellent).
+
+That said, your expectation (Python + SDK + Pydantic) is totally reasonable. My proposal below keeps the current TS server as the “transport + tool registry” layer and implements “Domain Profile Agents” and “Task Profile Agents” as MCP tools that are essentially profile-backed prompt programs with optional structured outputs.
+
+Proposal: Domain Profiles + Task Profiles as MCP tools
+
+Core idea
+An “agent” is not a separate process—it’s a profile object (stored config) + a tool (execution entrypoint) that:
+1. Loads a Domain Profile (long-lived context and rules),
+2. Loads a Task Profile (a reusable workflow template),
+3. Calls z.ai (via zaiClient) with a composed prompt,
+4. Returns either text or validated JSON.
+
+What is a Domain Profile Agent?
+A Domain Profile is stable context for a domain, e.g.:
+•  “You are helping with Terraform + AWS org policies”
+•  preferred terminology, constraints, definition of done, formatting rules
+•  allowed tools / forbidden actions
+•  examples (few-shot) for that domain
+
+Representation (stored on disk): profiles/domains/<name>.json
+
+Example shape (conceptual):
+•  name, description
+•  systemPrompt (domain-specific)
+•  guardrails (bullets)
+•  outputConventions (markdown sections, etc.)
+•  defaults (model, temperature, max tokens)
+
+What is a Task Profile Agent?
+A Task Profile is a reusable workflow, e.g.:
+•  “Create an implementation plan”
+•  “Triage a bug”
+•  “Generate a PR description”
+•  “Write a migration guide”
+
+Representation (stored on disk): profiles/tasks/<name>.json
+
+Example shape (conceptual):
+•  name, description
+•  template (prompt template with variables like {{input}}, {{repo_context}})
+•  requiredInputs (schema for tool args)
+•  outputSchema (optional JSON schema; if set, we demand JSON output and validate)
+
+MCP tools to add (minimal but complete set)
+
+Profile management tools
+These make profiles usable by non-technical users without editing files manually.
+
+•  domain_profile_list → list available domain profiles
+•  domain_profile_get → return one profile (and maybe its raw JSON)
+•  domain_profile_put → create/update a profile
+•  task_profile_list
+•  task_profile_get
+•  task_profile_put
+
+All of these are straightforward file-backed CRUD.
+
+Execution tools (the “agents”)
+•  domain_agent_run
+◦  args: { domain: string, input: string, ... }
+◦  behavior: runs with domain system prompt + input
+•  task_agent_run
+◦  args: { domain?: string, task: string, input: string, vars?: object }
+◦  behavior: composes domain + task template + input; calls z.ai; returns output
+•  Optional: task_agent_run_json
+◦  same as above, but requires outputSchema and returns validated JSON (or errors + retry strategy)
+
+This turns “agents” into repeatable tools Warp can call.
+
+How to do “Pydantic-like” validation in TypeScript
+If you want the same ergonomics as Pydantic (schema + parse + nice errors), you can do it in TS with either:
+
+•  Zod (common TS runtime validation), or
+•  TypeBox (JSON-schema-first, good for tool schemas)
+
+Pragmatically:
+•  MCP tool inputSchema is already JSON Schema-like.
+•  We can define the same schema once and use it for:
+  1) MCP tool input validation
+  2) model output validation (when expecting JSON)
+
+Flow for structured output:
+1. In the prompt, instruct z.ai: “Return ONLY valid JSON matching this schema…”
+2. Parse the response as JSON
+3. Validate against the schema
+4. If invalid, optionally do one repair round-trip (“You returned invalid JSON; here are errors; return corrected JSON only.”)
+
+Why this strategy fits your “Domain Profile / Task Profile Agents” requirement
+•  Non-technical users get named agents they can run (“use task plan_impl in domain warpos_mcp”).
+•  The repository keeps the logic declarative (profiles) rather than hardcoding lots of bespoke tool handlers.
+•  You can add new agents by adding JSON files, not writing code.
+
+If you strongly prefer Python
+A clean compromise is:
+•  Keep this Node MCP server as the MCP “front door”
+•  Delegate execution to a Python module via a subprocess call (or a small local HTTP server), where Python does:
+◦  z.ai SDK calls
+◦  Pydantic input/output validation
+
+But I wouldn’t start there unless you already know you need Python-only libraries, because it adds packaging complexity (Python runtime + env management + cross-platform issues).
+
+If you tell me what you mean concretely by “Domain Profile Agent” vs “Task Profile Agent” (a couple examples of each), I can propose the exact tool names + JSON schemas + profile file formats to implement in this repo.
+C:\Development\warpos
+Can you read remote github url's? if so I can provide you with 1. Infrastructure, 2. Collaboration, 3. Domain Profile Agents. (Task Profile Agents being an atomic level / type deterministic execution agent for very specific purposes with very specific tools)
+Yes—if you share GitHub URLs (public, or private if you can provide the contents another way), I can open and read them and use them as context.
+
+What works best:
+•  Link to specific files (or a PR) rather than a repo root.
+•  If it’s a repo, point me to the canonical docs (e.g. README.md, docs/*.md) plus the key code files that define:
+  1) Infrastructure (how MCP servers are launched/configured, env handling, deployment)
+  2) Collaboration (profile storage, review/approval workflow, naming/versioning)
+  3) Domain Profile Agents (schemas + examples)
+
+If the repos are private and you can’t paste content, then I won’t be able to fetch them directly—alternatives are:
+•  paste the relevant files here, or
+•  export them as gists/snippets you can share.
+
+Send the URLs and tell me which sections/questions you want answered after I read them (e.g., “derive a final tool schema,” “map concepts to this TS codebase,” etc.).
+Yes — after reading those AXIVO YAMLs, the design pattern is pretty clear: profiles are “frameworks” made of observations grouped under context/methodology sections, with inheritance via a relations: graph (e.g. DEVELOPER → inherits ENGINEER → inherits COLLABORATION + INFRASTRUCTURE).
+
+A good TS/Node proposal for Domain Profile Agents and Task Profile Agents in this repo is to implement that same profile graph + observation system as first-class MCP tools, and keep the actual “LLM call” behind zaiClient.ts.
+
+1) Domain Profile Agents (framework-driven agent tools)
+
+What we should implement (mirroring AXIVO)
+Domain Profiles are YAML files that look like:
+•  description
+•  relations: [{ target, type: inherits }]
+•  <name>_context.profile.observations: [...]
+•  <name>_methodology.*.observations: [...]
+
+So in warpos, a Domain Profile Agent is essentially:
+
+DomainProfileAgent = (resolved profiles via inheritance) → compiled “framework prompt” → z.ai call
+
+Tools to expose
+Minimal set that matches how those YAMLs are intended to be used:
+
+1) domain_profile_list
+•  returns available profile IDs (e.g. common/infrastructure, common/collaboration, developer, engineer, researcher)
+
+2) domain_profile_get
+•  returns the raw YAML (or parsed JSON) for inspection
+
+3) domain_agent_run
+•  input:
+◦  profiles: string[] (e.g. ["developer"] or ["engineer", "researcher"])
+◦  input: string
+◦  optional mode: "analyze" | "discuss" | "implement" (since the profiles explicitly push that sequencing)
+◦  optional modelSettings (temp, etc.)
+•  behavior:
+a. Resolve inheritance (developer → engineer → collaboration + infrastructure)
+b. Compile a system prompt from observations, preserving group headings
+c. Send to z.ai with { role: "system", content: framework } + { role: "user", content: input }
+d. Return text
+
+Key design detail: inheritance + ordering
+Those AXIVO profiles rely on inheritance being meaningful. In TS, implement:
+•  resolveProfileGraph(entryProfiles) -> ordered list
+•  order: base frameworks first (INFRASTRUCTURE, COLLABORATION), then more specific (ENGINEER), then most specific (DEVELOPER)
+•  dedupe repeated observations by exact string match (optional but helpful)
+
+Key design detail: “Framework Usage acknowledgement”
+Your INFRASTRUCTURE profile includes a convention like a “Framework Usage: …” acknowledgement line. I’d implement this as:
+•  compile-time: include a final instruction in the system prompt:
+◦  “End your response with > Framework Usage: **[used]** and list the profiles applied.”
+•  runtime: domain_agent_run automatically appends that line (or asks the model to), depending on how strict you want it.
+
+2) Task Profile Agents (atomic, type-deterministic execution tools)
+
+You described Task Profile Agents as “atomic level / type deterministic execution agent for very specific purposes with very specific tools.”
+
+In MCP terms, that maps best to: tools with strict input schema + strict output schema, with minimal degrees of freedom.
+
+What we should implement
+A Task Profile is a definition for a tool-like execution:
+•  name, description
+•  inputSchema (JSON Schema)
+•  outputSchema (JSON Schema)
+•  promptTemplate (string with variables)
+•  modelSettings (temperature 0, etc.)
+•  optional: domainProfiles: string[] defaults (so tasks run under a domain framework automatically)
+
+Tools to expose
+1) task_profile_list, task_profile_get (same as domain)
+
+2) task_agent_run_json
+•  input:
+◦  task: string
+◦  input: object (validated against task input schema)
+◦  optional domainProfilesOverride: string[]
+•  behavior:
+a. Resolve domain framework (if any)
+b. Render prompt template with validated inputs
+c. Ask z.ai to return JSON only
+d. Parse JSON
+e. Validate against outputSchema
+f. If invalid, optionally do one “repair” pass (send validation errors back, ask for corrected JSON only)
+
+This gives you the “deterministic/type-safe” property you’re expecting from Python+Pydantic, but in TS you’d implement it using:
+•  JSON Schema + a validator (Ajv), or
+•  Zod schemas (less portable but very ergonomic)
+
+3) Why TS/Node still makes sense even with this profile system
+Your expectation (“Python + z.ai SDK + Pydantic”) mainly buys:
+•  easy runtime validation
+•  strong structured outputs
+
+But MCP itself already wants JSON-schema-ish definitions (tool input schemas), and TypeScript can match Pydantic’s ergonomics via Zod/Ajv. So you can get:
+•  profile inheritance
+•  strict tool schemas
+•  structured output validation
+•  low friction Warp integration (single stdio node process)
+
+…without introducing a second runtime and virtualenv management.
+
+4) Suggested on-disk layout in this repo
+•  profiles/domains/*.yaml (Domain Profiles, AXIVO-style)
+•  profiles/tasks/*.yaml (Task Profiles, include schemas/templates)
+•  src/profileLoader.ts (load YAML, resolve inheritance, compile framework prompt)
+•  src/taskRunner.ts (render templates, validate input/output, call z.ai)
+•  src/index.ts adds the new MCP tools and routes them
+
+If you want, paste (or link) your intended schema for “Task Profile Agents” (one concrete example), and I’ll map it into an exact MCP tool signature + file format that fits this repo’s current structure.
+C:\Development\warpos
+I do not yet have an intended schema for "Task Profile Agents". Reason: the Domain Profile Agents are both behavioural + SRE, and technical + methodological. Task Profile Agents are yet to be defined as Agents which bridge the abyss between user intent (product design + project development) and AI Explicit Needs (Anatomy of Determinism + linear chain). Example of typical problematic complex tasks: graph TD
+    A["Build User Authentication"] -->|Single Agent Tries Everything| B{???}
+    B --> C[Database?]
+    B --> D[API?]
+    B --> E[Frontend?]
+    B --> F[Security?]
+    B --> G[Tests?]
+    C -.->|Confused| H[Incomplete Implementation]
+    D -.->|Overwhelmed| H
+    E -.->|Context Lost| H
+    F -.->|Assumptions| H
+    G -.->|Forgotten| H
+    style A fill:#ff6b6b,color:#fff
+    style H fill:#666,color:#fff
+Example of conceived solution: graph TD
+    A["Build User Authentication"] -->|Break Down| B[Linear Tasks]
+    B --> C["Agent 1: Database"]
+    B --> D["Agent 2: API"]
+    B --> E["Agent 3: Frontend"]
+    
+    C --> C1[Create users table]
+    C1 --> C2[Add indexes]
+    C2 --> C3[Create sessions table]
+    
+    D --> D1[POST /register]
+    D1 --> D2[POST /login]
+    D2 --> D3[POST /logout]
+    
+    E --> E1[Login Form]
+    E1 --> E2[Register Form]
+    E2 --> E3[Auth Context]
+    
+    C3 --> F[Working System]
+    D3 --> F
+    E3 --> F
+    
+    style A fill:#4ecdc4,color:#fff
+    style F fill:#4ecdc4,color:#fff
+If you identify a gap, yes, there is a requirement here, for something known as a "Main Context Document" (MCD) (see: https://github.com/rinadelph/Agent-MCP/blob/main/docs/mcd-guide.md). Creating this is done outside of the MCP, with Warp and its capabilities. It is then provided to MCP Domain Profile. High-Level workflow as such: Warp: MCD -> MCP: Domain Profile Agent(s) -> MCP: Task Profile Agent(s). Is this more clear? 
+(added context: conceptual foundation for MDC: https://github.com/rinadelph/Agent-MCP/blob/main/docs/chapter-2-context-foundation.md) 
+added: The term 'added' is not recognized as a name of a cmdlet, function, script file, or executable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+context: conceptual foundation for MDC: https://github.com/rinadelph/Agent-MCP/blob/main/docs/chapter-2-context-foundation.md)
+ParserError: 
+Line |
+   1 |  … m/rinadelph/Agent-MCP/blob/main/docs/chapter-2-context-foundation.md)
+     |                                                                        ~
+     | Unexpected token ')' in expression or statement.
+Yes—this is much clearer.
+
+You’re describing a 3-layer pipeline:
+
+1) Warp creates the MCD (Main Context Document): a human-friendly but structured “source of truth” for intent, scope, constraints, interfaces, acceptance criteria.
+2) MCP Domain Profile Agent(s): apply behavioral + SRE + technical + methodological frameworks (like your AXIVO YAML inheritance model: INFRASTRUCTURE + COLLABORATION → ENGINEER → DEVELOPER).
+3) MCP Task Profile Agent(s): execute atomic, type-deterministic units in a linear chain, bridging “intent” → “explicit needs” → “steps”.
+
+That matches the “linear decomposition / short-lived agents” philosophy you cited (Agent-MCP emphasizes that anything not expressible as Step 1 → Step N isn’t atomic enough). (github.com)
+
+The gap: Task Profiles are not “just prompts”
+Your Task Profile Agents aren’t “another persona.” They’re a contract:
+
+•  fixed inputs (typed)
+•  fixed outputs (typed)
+•  explicit preconditions
+•  explicit file/tool boundaries
+•  explicit verification/acceptance checks
+•  minimal context: only what’s required from the MCD + relevant domain rules
+
+So the proposal is: treat Task Profiles like executable specs, and make the model a compiler/executor, not a conversational assistant.
+
+Proposal: a Task Profile Agent = deterministic “Task Contract” + executor
+
+A. Task Contract (schema we can start with)
+Even before you finalize a schema, a good starting “minimum deterministic” shape is:
+
+•  id / name
+•  objective (single sentence)
+•  inputs (JSON Schema)
+•  outputs (JSON Schema)
+•  requires (dependencies; e.g. “DB migration tool ready”, “API base route exists”)
+•  context_selectors (what to pull from MCD; e.g. auth.requirements, db.constraints)
+•  steps (linear list; each step has its own expected artifact)
+•  verification (commands or checks; also linear)
+•  failure_modes (what to do if verification fails)
+
+This is basically “Pydantic models + procedure,” but expressed in JSON Schema / YAML so it’s language-agnostic.
+
+B. MCP tools that make this real
+To support your workflow Warp (MCD) → MCP Domain → MCP Tasks, I’d implement these tools:
+
+1) MCD ingestion
+•  mcd_set (store MCD text + optional structured sections)
+•  mcd_get
+
+2) Domain framework compilation
+•  domain_profile_apply
+◦  input: { profiles: ["developer", "infrastructure"], mcd_ref, goal }
+◦  output: a compiled “Domain Guidance Packet” (DGP): the exact rules + constraints that must govern tasks
+
+3) Task decomposition (the bridge)
+•  task_chain_propose
+◦  input: { mcd_ref, goal, domain_guidance_ref }
+◦  output: a linear task DAG (often multiple linear chains that can run in parallel, but each chain is linear), with explicit interfaces between chains (DB → API → Frontend).
+
+4) Task execution (atomic)
+•  task_run
+◦  input: { task_id, mcd_ref, domain_guidance_ref, input }
+◦  output: { output, verification_results, notes } (validated)
+
+The key is: Task agents do not “decide what to do.” They only:
+•  validate inputs
+•  follow the defined steps
+•  produce the defined outputs
+•  run the defined verification
+
+That’s your “Anatomy of Determinism + linear chain” in MCP form.
+
+Why Node/TS is still a reasonable choice for this
+Your intuition “Python + SDK + Pydantic” is about deterministic contracts and validation. You can get the same properties in TS by using:
+•  JSON Schema for tool I/O (already aligned with MCP)
+•  a runtime validator (Ajv) to enforce determinism at the boundaries
+•  a strict “JSON-only output” mode for task tools (parse + validate + retry-on-invalid)
+
+So Node/TS can be the transport + contract enforcement layer. The “agent intelligence” is still in z.ai, but constrained by contracts.
+
+If later you want to move execution to Python (for Pydantic ergonomics or a Python-only z.ai SDK), you can keep the same MCP surface area and swap the implementation behind it.
+
+One clarification question (so the design matches your intent)
+Do you want Task Profile Agents to be:
+
+1) Predefined library of atomic tasks (e.g. db_create_table, api_add_endpoint, ui_add_form), assembled into chains per project,  
+or
+2) Generated per-project from the MCD (each chain emits project-specific tasks with strict schemas)?
+
+My recommendation is a hybrid:
+•  a small stable library of “atomic task templates”
+•  project-specific instantiations generated from MCD (filled parameters + locked outputs)
+
+If you answer that one question, I can propose a concrete first schema and the exact MCP tool signatures that fit this repo’s current zai_plan architecture.
+C:\Development\warpos
+Your recommendation is sound. 1. A small stable library of "atomic task templates" (this will require documentation), 2. project-specific instantations generated from MCD (filled parameters + locked outputs) (this will require documentation). I would suggest 3. a mechanism to add/remove "an atomic task template" to/from small stable library, and 4. a mechanism to list existing "atomic task templates" in the small stable library. 
+That maps cleanly to an MCP-backed “template library + instantiated tasks” system. Here’s a concrete proposal that covers (1)–(4) and stays deterministic.
+
+Concepts (tight definitions)
+
+•  Atomic Task Template (ATT): a reusable contract for a small unit of work (typed input/output + linear steps + verification). Stable library item.
+•  Task Instance (ATI): a project-specific instantiation of an ATT with:
+◦  filled parameters from the MCD,
+◦  pinned template version,
+◦  “locked outputs” expectations (schemas + acceptance checks),
+◦  references to the exact MCD excerpt(s) used.
+•  Task Chain: an ordered list of Task Instances with explicit handoffs (e.g. DB → API → Frontend).
+
+On-disk layout (simple + auditable)
+
+•  profiles/domains/**/*.yaml — Domain Profile Agents (AXIVO style)
+•  task-templates/*.yaml — the stable ATT library
+•  task-instances/<project-slug>/*.json — generated ATIs (immutable artifacts)
+•  mcd/<project-slug>.md — the MCD (generated in Warp, then provided to MCP)
+
+This makes “list/add/remove templates” trivial and keeps the instance generation reproducible.
+
+Minimal Task Template schema (first pass)
+
+Use YAML so it’s friendly to maintain, but validate it at runtime (Ajv/JSON Schema or Zod).
+yaml
+Why this is “deterministic enough”
+•  Strict inputs_schema and outputs_schema
+•  Linear steps
+•  Explicit verification commands
+•  Optional “allowed_tools” gate (so tasks can’t silently do extra stuff)
+
+MCP tools to support your (1)–(4)
+
+Template library management (your #3 and #4)
+•  task_template_list → list id + version + description
+•  task_template_get → fetch raw YAML + parsed representation
+•  task_template_put → add or update a template (writes task-templates/<id>@<version>.yaml or similar)
+•  task_template_delete → remove a template (or deprecate it)
+
+I strongly recommend deprecate instead of delete in most cases:
+•  keep old templates for reproducibility of older Task Instances
+•  allow “active: false” / “deprecated: true” metadata
+
+Instantiation from MCD (your #2)
+•  task_instance_generate
+◦  input: { template_id, template_version?, project_slug, mcd_text | mcd_ref, params }
+◦  output: a stored ATI doc + returned JSON
+◦  behavior:
+    1) validate params vs inputs_schema
+    2) resolve domain profiles (default + overrides)
+    3) “lock” the instance by pinning template version + hashing MCD excerpt(s)
+    4) produce a final “executor prompt packet” (domain + task)
+
+•  task_instance_list / task_instance_get
+
+Execution
+•  task_run
+◦  input: { instance_id } (or { project_slug, instance_id })
+◦  output: validated outputs_schema + verification results + trace pointers
+
+Documentation (required for adoption)
+Two docs files typically cover 90% of user confusion:
+
+1) docs/task-templates.md
+•  what an ATT is
+•  how to add a new template (and what “atomic” means)
+•  versioning rules (e.g. bump version when schemas change)
+•  examples
+
+2) docs/task-instances.md (or docs/mcd-to-tasks.md)
+•  how an MCD gets transformed into instances
+•  what “locked outputs” means (pin template version + validate output + verify commands)
+•  how chains are built (handoffs)
+
+One key choice to make now (I recommend the second)
+For task_template_put / task_template_delete, do you want the “library” to be:
+1) repo-local (templates stored in this repo), or
+2) portable (templates can be loaded from a directory path / git submodule / URL)
+
+For early iteration: repo-local is simplest and most reliable. Once the schema stabilizes, you can support importing/exporting templates.
+
+If you want, next step is I can turn this into an implementation plan for warpos (new files + the MCP tool surface + where validation lives) without writing any code yet—just say “make a plan.”
+C:\Development\warpos
+I understand your recommendation, I accept it. make a plan - ensure it is comprehensive and structured and can be executed as a progressive path of small incremental steps for both implementation and documentation. 
+Understood—I've reviewed your answers. The critical item requiring careful examination is the third answer (line 201): this MCP does the work (write files, apply changes), BUT it must include a preparation stage that writes plans/specs into a staging directory (e.g., .warpos/) for user/Warp inspection before the "GO/NO-GO" decision.
+
+This introduces a two-phase execution model:
+
+Phase A: Preparation (safe, inspection-only)
+•  task_prepare (or task_run_json with mode: "prepare")
+◦  Loads instance + template
+◦  Compiles domain framework + task steps + instance inputs
+◦  Calls z.ai to generate the execution plan/spec (validated JSON)
+◦  Writes the plan to .warpos/plans/<project>/<instance_id>.json
+◦  Returns the plan JSON + file path for inspection
+◦  Does NOT execute any side-effects (no file writes in the target repo, no shell commands)
+
+Phase B: Execution (side-effects permitted after approval)
+•  task_execute (or task_run_json with mode: "execute")
+◦  Loads the approved plan from .warpos/plans/
+◦  Applies the changes (write files, run commands)
+◦  Runs verification commands (by default; configurable)
+◦  Returns execution result + verification results
+
+This way:
+1. User/Warp calls task_prepare → inspects .warpos/plans/<instance_id>.json
+2. User/Warp reviews and decides GO/NO-GO
+3. If GO, user/Warp calls task_execute with the same instance_id
+
+Implications for the plan
+
+Updated Step 6 scope
+Step 6 must now implement both preparation and execution as separate concerns, with a shared staging directory:
+
+•  Add .warpos/ to .gitignore (transient staging area)
+•  src/taskExecutor.ts needs two exported functions:
+◦  prepareTask(instance) → generate plan, write to .warpos/plans/<project>/<instance_id>.json
+◦  executeTask(instance) → load plan from .warpos/plans/, apply it
+•  MCP tool handlers:
+◦  task_prepare (replaces or augments task_run_json with mode: "prepare")
+◦  task_execute (replaces or augments task_run_json with mode: "execute")
+◦  Optional: keep a single task_run_json tool with a mode parameter ("prepare" | "execute"), or split into two separate tools for clarity
+
+Configuration mechanism (from your second answer)
+You want verification to run by default, but with a config toggle. Suggested approach:
+
+•  Add a config.yaml or .warpos/config.yaml with:
+yaml
+•  Load this config in src/taskExecutor.ts and respect it when running task_execute
+•  Optionally, allow per-instance override: task_execute takes { instance_id, run_verification?: boolean }
+
+New acceptance criteria (addition)
+•  A non-technical user can:
+◦  generate a task execution plan (preparation phase) and inspect it in .warpos/plans/
+◦  after reviewing the plan, approve and execute it (execution phase)
+•  The system enforces the GO/NO-GO boundary:
+◦  preparation never writes to the target repo
+◦  execution only proceeds if a prepared plan exists
+
+Updated plan (inline edits to Step 6)
+
+I'll update the plan now to reflect this two-phase model and the configuration mechanism.
+I examined your three answers as they now appear in the plan, and the one that needed careful treatment is the task execution workflow (your GO/NO-GO requirement).
+
+What your answers imply (and what was missing before)
+Your requirements change “task execution” from a single action into a two-stage pipeline:
+
+1) Preparation stage (no side-effects)  
+   MCP generates plans/specs and writes them into a dedicated inspection directory (you gave .mcp-name as an example). This is where Warp/user review happens.
+
+2) Execution stage (side-effects allowed)  
+   Only after user/Warp provides GO does MCP apply changes (write files, run commands), then runs verification (by default, but configurable).
+
+This is a critical safety + determinism boundary, and it should be explicit in the plan.
+
+What I did
+I updated Step 6 in the plan to implement this as a two-phase model: prepare + execute, including:
+
+•  A staging directory (I used .warpos/ as the default concrete name; we can rename to .mcp-warpos/ or .mcp/warpos/ if you prefer)
+•  A stored plan artifact at .warpos/plans/<project>/<instance_id>.json
+•  Two MCP tools:
+◦  task_prepare (writes plan/spec for inspection; no side effects)
+◦  task_execute (loads the prepared plan and performs changes + verification)
+
+It also incorporates your second answer by adding a configuration mechanism via .warpos/config.yaml to switch verification between “run by default” and “opt-in”, while defaulting to run-by-default.
+
+One remaining detail to confirm (so we implement the “careful” part correctly)
+When you say preparation writes “plans/specs”, do you want the prepared artifact to be:
+
+A) Purely declarative (recommended): “here are the file edits + commands to run” (like an execution manifest), then execution is a dumb/applier;  
+or  
+B) Narrative plan/spec (human-readable), and execution re-derives concrete edits at runtime?
+
+I strongly recommend A because it makes GO/NO-GO meaningful and reproducible: the exact thing you approved is exactly what gets executed.
+
+If you confirm A vs B (or a hybrid), we’re ready to start implementing Step 0/1 immediately.
+C:\Development\warpos
+Option A. 
+Step 0: scaffold directories + baseline docs
+Step 1: add YAML parsing + JSON Schema validation foundation
+Step 2: implement Domain Profile MCP tools
+Step 3: implement MCD storage tools
+Step 4: implement Task Template library tools
+Step 5: implement Task Instance generation tools
+Step 6: implement two-phase execution (prepare + execute)
+Step 7: add tests + update WARP.md
+Implementing Step 0 now: add scaffolding directories, initial docs, example profile/template, and update README to point to the new workflow/docs.
+Option A confirmed—great. That means GO/NO-GO is enforced by storing a declarative execution manifest and executing exactly that manifest (no re-derivation at execute time).
+
+I’ve now completed Step 0 of the plan in this repo:
+
+•  Added scaffolding directories: profiles/domains/, task-templates/, task-instances/, mcd/, docs/
+•  Added initial docs:
+◦  docs/domain-profiles.md
+◦  docs/task-templates.md
+◦  docs/task-instances.md (already references prepare→execute semantics)
+◦  docs/mcd.md
+•  Added example artifacts:
+◦  profiles/domains/example/infrastructure.yaml
+◦  profiles/domains/example/developer.yaml (inherits from infrastructure)
+◦  task-templates/example.echo@1.yaml
+•  Updated README.md to reference the new workflow and docs (clearly marked “in progress”)
+
+Next up is Step 1: explicitly add YAML parsing + JSON Schema validation (so we can safely load these files and validate tool I/O).
+C:\Development\warpos
+Continue.
+Starting Step 1: add explicit YAML + JSON Schema validation deps, then implement src/schema.ts and src/profileStore.ts (profile loading, inheritance resolution, framework compilation).
+Step 1 is complete.
+
+What changed
+•  Added explicit runtime deps in package.json: yaml, ajv, ajv-formats
+•  Implemented shared schema helpers in src/schema.ts (Ajv instance + validation helpers)
+•  Implemented domain profile loading/inheritance/compilation in src/profileStore.ts:
+◦  lists profiles under profiles/domains/
+◦  loads YAML → object
+◦  resolves relations: [{type: "inherits", target: "..."}] with cycle detection
+◦  collects all observations: string[] blocks anywhere in the document
+◦  compiles a framework prompt grouped by observation-path
+•  Updated docs/domain-profiles.md to define profile IDs and relation targets
+•  Verified with npm run build (passes)
+
+Next is Step 2: wire this into MCP tools (domain_profile_list/get/put/delete + domain_agent_run) in src/index.ts.
+C:\Development\warpos
+Continue
+C:\Development\warpos\src\index.ts
+C:\Development\warpos\src\zaiClient.ts
+Step 2 is complete: Domain Profile MCP tools are now implemented and wired into the server.
+
+What changed
+•  Extended src/zaiClient.ts to support message-based calls:
+◦  Added zaiChat(messages, { model?, temperature? })
+◦  Kept zaiPlan(prompt) as a wrapper for backwards compatibility
+•  Added Domain Profile tools to src/index.ts:
+◦  domain_profile_list → returns { profiles: [...] } as JSON text
+◦  domain_profile_get → returns the raw YAML file contents
+◦  domain_profile_put → writes/overwrites a profile YAML (after ensuring it parses as a YAML object)
+◦  domain_profile_delete → deprecates (does not hard delete): writes deprecated: true, deprecated_at, and optional deprecated_reason
+◦  domain_agent_run → resolves inheritance, compiles a framework prompt, and calls z.ai with:
+▪  system message = compiled framework (mandatory)
+▪  user message = your input
+•  Updated docs/domain-profiles.md to list the implemented MCP tools.
+•  Verified build with npm run build.
+
+Next up is Step 3: add mcd_list / mcd_get / mcd_put and src/mcdStore.ts with hashing.
+Step 3 is complete.
+
+What changed
+•  Added src/mcdStore.ts
+◦  Stores MCDs at mcd/<projectSlug>.md
+◦  Persists metadata at mcd/<projectSlug>.meta.json containing:
+▪  project_slug
+▪  sha256 (content hash)
+▪  updated_at
+◦  Supports listProjectSlugs(), get(), put()
+•  Added MCP tools in src/index.ts
+◦  mcd_list → returns { projects: [...] }
+◦  mcd_get → returns { meta, markdown }
+◦  mcd_put → writes the MCD and meta, returns { ok: true, meta }
+◦  Includes conservative project_slug validation (^[a-zA-Z0-9._-]+$, no slashes/backslashes/..)
+•  Updated docs/mcd.md with the implemented tools.
+•  Verified build with npm run build.
+
+Next is Step 4: implement the Atomic Task Template library tools (task_template_list/get/put/delete) and src/templateStore.ts (including validation + versioned filenames).

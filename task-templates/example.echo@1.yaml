@@ -1,0 +1,28 @@
+id: example.echo
+version: 1
+description: Return the input text as output (example template for format).
+inputs_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+outputs_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - text
+  properties:
+    text:
+      type: string
+steps:
+  - id: echo
+    instruction: Return a JSON object with the same `text` as provided in inputs.
+domain_profiles_default:
+  - example/developer
+active: false
+deprecated: true
+deprecated_at: 2025-12-13T22:17:27.943Z
+deprecated_reason: Trivial example no longer needed for testing

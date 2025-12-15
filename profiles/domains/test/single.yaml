@@ -1,0 +1,8 @@
+description: Single level inheritance test
+relations:
+  - target: example/infrastructure
+    type: inherits
+single_context:
+  profile:
+    observations:
+      - Directly inherits from infrastructure only

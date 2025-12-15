@@ -1,0 +1,12 @@
+description: Example INFRASTRUCTURE base profile (illustrative)
+
+infrastructure_context:
+  profile:
+    observations:
+      - Prefer reproducible, auditable workflows (store artifacts on disk).
+      - Validate inputs; fail fast on schema violations.
+
+infrastructure_methodology:
+  documentation_system:
+    observations:
+      - Persist prepared plans/specs in a dedicated inspection directory before execution.

@@ -1,0 +1,15 @@
+description: Example DEVELOPER domain profile (illustrative)
+relations:
+  - target: example/infrastructure
+    type: inherits
+
+developer_context:
+  profile:
+    observations:
+      - Follow analyze → discuss → implement sequencing.
+      - Prefer explicit schemas for tool inputs/outputs.
+
+developer_methodology:
+  execution_protocol:
+    observations:
+      - When asked to execute, prepare a declarative plan artifact first (GO/NO-GO), then execute exactly that artifact.

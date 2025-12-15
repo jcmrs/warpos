@@ -1,0 +1,22 @@
+{
+  "instance_id": "9e2dd307-b471-433d-92e5-2e3badb4eeb5",
+  "project_slug": "framework-test",
+  "template_id": "create-express-endpoint",
+  "template_version": 1,
+  "inputs": {
+    "endpoint_path": "/api/order",
+    "http_method": "GET",
+    "description": "Profile order test",
+    "response_schema": {
+      "type": "object"
+    },
+    "requires_auth": false
+  },
+  "mcd_hash": "test-hash-order",
+  "domain_profiles": [
+    "example/developer",
+    "example/infrastructure"
+  ],
+  "created_at": "2025-12-13T22:27:15.927Z",
+  "status": "pending"
+}

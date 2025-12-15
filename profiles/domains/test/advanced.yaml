@@ -1,0 +1,9 @@
+description: Advanced test profile with multi-level inheritance
+relations:
+  - target: example/developer
+    type: inherits
+advanced_context:
+  profile:
+    observations:
+      - Inherits from developer which inherits from infrastructure
+      - Tests multi-level inheritance chain

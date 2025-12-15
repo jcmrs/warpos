@@ -1,0 +1,117 @@
+id: create-express-endpoint
+version: 1
+description: Create a new REST API endpoint in an Express.js application with
+  route handler, validation, error handling, and tests.
+inputs_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - endpoint_path
+    - http_method
+    - description
+    - response_schema
+  properties:
+    endpoint_path:
+      type: string
+      description: API endpoint path (e.g., /api/todos)
+    http_method:
+      type: string
+      enum:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+      description: HTTP method for the endpoint
+    description:
+      type: string
+      description: What this endpoint does
+    response_schema:
+      type: object
+      description: Expected response structure
+    request_body_schema:
+      type: object
+      description: Expected request body schema (for POST/PUT/PATCH)
+    requires_auth:
+      type: boolean
+      default: false
+      description: Whether endpoint requires authentication
+outputs_schema:
+  type: object
+  additionalProperties: false
+  required:
+    - route_file
+    - handler_file
+    - test_file
+    - curl_example
+  properties:
+    route_file:
+      type: string
+      description: Path to created route file
+    handler_file:
+      type: string
+      description: Path to handler implementation
+    test_file:
+      type: string
+      description: Path to test file
+    curl_example:
+      type: string
+      description: Example curl command to test endpoint
+steps:
+  - id: create-route
+    instruction: |
+      Create Express route definition in src/routes/ directory.
+      File: src/routes/{resource}.routes.js
+      - Define {http_method} {endpoint_path} route
+      - Import handler from controllers/
+      - Add input validation middleware if request_body_schema provided
+      - Add authentication middleware if requires_auth is true
+      - Wire route to handler function
+  - id: implement-handler
+    instruction: |
+      Create handler function in src/controllers/ directory.
+      File: src/controllers/{resource}.controller.js
+      - Implement {http_method} handler for {endpoint_path}
+      - Purpose: {description}
+      - Return response matching response_schema structure
+      - Handle errors with proper HTTP status codes:
+        * 400 for validation errors
+        * 401/403 for auth errors
+        * 404 for not found
+        * 500 for server errors
+      - Add error logging
+  - id: add-validation
+    instruction: |
+      Add input validation using express-validator or joi.
+      - Validate request params/query/body against request_body_schema
+      - Return 400 with clear error messages for invalid input
+      - Sanitize inputs to prevent injection attacks
+  - id: write-tests
+    instruction: |
+      Create unit and integration tests.
+      File: tests/integration/{resource}.test.js
+      - Test successful request (200/201 status)
+      - Test validation errors (400 status)
+      - Test authentication if requires_auth (401 status)
+      - Test error handling (500 status)
+      - Use supertest library for HTTP assertions
+      - Mock database/external dependencies
+  - id: update-docs
+    instruction: |
+      Update API documentation.
+      File: docs/api.md
+      - Add endpoint: {http_method} {endpoint_path}
+      - Document request parameters and body
+      - Document response format
+      - Add curl example for testing
+verification:
+  - id: tests-pass
+    command: npm test -- {resource}.test.js
+  - id: lint-clean
+    command: npm run lint -- src/routes/{resource}.routes.js
+      src/controllers/{resource}.controller.js
+  - id: curl-test
+    command: "curl -X {http_method} http://localhost:3000{endpoint_path} -H
+      'Content-Type: application/json'"
+domain_profiles_default:
+  - example/developer

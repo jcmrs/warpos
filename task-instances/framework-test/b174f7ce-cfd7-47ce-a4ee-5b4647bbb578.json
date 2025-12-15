@@ -1,0 +1,26 @@
+{
+  "instance_id": "b174f7ce-cfd7-47ce-a4ee-5b4647bbb578",
+  "project_slug": "framework-test",
+  "template_id": "create-express-endpoint",
+  "template_version": 1,
+  "inputs": {
+    "endpoint_path": "/api/test",
+    "http_method": "GET",
+    "description": "Single profile framework test",
+    "response_schema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "requires_auth": false
+  },
+  "mcd_hash": "test-hash-single",
+  "domain_profiles": [
+    "example/infrastructure"
+  ],
+  "created_at": "2025-12-13T22:26:43.474Z",
+  "status": "pending"
+}

@@ -1,0 +1,8 @@
+description: Minimal test profile for validation
+test_context:
+  profile:
+    observations:
+      - This is a test profile
+deprecated: true
+deprecated_at: 2025-12-13T22:15:17.767Z
+deprecated_reason: Test profile no longer needed - used for testing only

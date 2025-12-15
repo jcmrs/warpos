@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(cat:*)",
+      "Bash(test:*)",
+      "Bash(node test-server.js:*)",
+      "Bash(node test-tool.js:*)",
+      "Bash(claude mcp add:*)",
+      "mcp__warpos__mcd_put",
+      "mcp__warpos__task_template_put",
+      "mcp__warpos__task_instance_generate",
+      "mcp__warpos__task_prepare",
+      "Bash(node test-substitution.js:*)",
+      "mcp__warpos__domain_profile_list",
+      "mcp__warpos__domain_profile_get",
+      "mcp__warpos__domain_profile_put",
+      "mcp__warpos__domain_profile_delete",
+      "Bash(echo:*)",
+      "mcp__warpos__mcd_get",
+      "mcp__warpos__mcd_list",
+      "mcp__warpos__task_template_list",
+      "mcp__warpos__task_template_get",
+      "mcp__warpos__task_template_delete",
+      "mcp__warpos__task_instance_list",
+      "mcp__warpos__task_instance_get",
+      "mcp__warpos__task_execute",
+      "Bash(node test-profile-error.js:*)",
+      "Bash(node:*)",
+      "mcp__serena__list_dir",
+      "Bash(dir /B:*)",
+      "Bash(wc:*)",
+      "Bash(git --version:*)",
+      "Bash(gh:*)",
+      "Bash(git flow:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)",
+      "Bash(rm:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "warpos"
+  ],
+  "spinnerTipsEnabled": false
+}
