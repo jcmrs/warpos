@@ -7,7 +7,7 @@
         "dist/index.js"
       ],
       "env": {
-        "DEVPACK_CODING_PLAN_API_KEY": "96d71429bd3441e1bf81b926e68d9213.anOifAt0sWHf8gee"
+        "DEVPACK_CODING_PLAN_API_KEY": "YOUR KEY HERE"
       }
     }
   }
