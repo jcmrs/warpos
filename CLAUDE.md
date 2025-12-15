@@ -43,17 +43,22 @@ See `.claude/rules/model-selection.md` for detailed guidance.
 
 ## 📋 Current Project State
 
-**Completed (Steps 0-4)**:
+**Completed (Steps 0-6)** - ~95% Complete:
 - ✅ Directory scaffolding + baseline docs
 - ✅ YAML parsing + JSON Schema validation (src/schema.ts)
 - ✅ Domain Profile tools (src/profileStore.ts + MCP tools)
 - ✅ MCD storage tools (src/mcdStore.ts + MCP tools)
 - ✅ Task Template library tools (src/templateStore.ts + MCP tools)
+- ✅ Task Instance generation tools (src/instanceStore.ts + MCP tools)
+- ✅ Two-phase execution (src/taskExecutor.ts + prepare/execute tools)
+- ✅ All 18 MCP tools implemented and tested
 
-**Remaining (Steps 5-7)**:
-- ⏳ Step 5: Task Instance generation tools
-- ⏳ Step 6: Two-phase execution (prepare + execute)
-- ⏳ Step 7: Tests + documentation updates
+**Recent Fixes**:
+- 🔧 Bug #1: Variable substitution in execution plans (FIXED)
+- 🔧 Bug #2: Poor error messages for missing resources (FIXED)
+
+**Remaining (Step 7)**:
+- ⏳ Step 7: Formal testing framework (Vitest) + test coverage reporting
 
 ## 🔧 Development Commands
 
@@ -64,7 +69,7 @@ npm start            # Run compiled MCP server (stdio)
 npm run dev          # Dev mode (run TS directly via ts-node)
 ```
 
-**No linting/testing configured yet** - will be added in Step 7.
+**Testing**: Manual testing completed (see docs/test-report-2025-12-13.md). Formal testing framework (Vitest) will be added in Step 7.
 
 ## 🌳 Project Structure
 
@@ -76,15 +81,15 @@ warpos/
 │   ├── profileStore.ts    # Domain Profile loading/inheritance/compilation
 │   ├── mcdStore.ts        # Main Context Document storage + hashing
 │   ├── templateStore.ts   # Task Template library (versioned)
-│   ├── instanceStore.ts   # [Step 5] Task Instance generation
-│   ├── taskExecutor.ts    # [Step 6] Two-phase execution (prepare/execute)
+│   ├── instanceStore.ts   # Task Instance generation
+│   ├── taskExecutor.ts    # Two-phase execution (prepare/execute)
 │   └── zaiClient.ts       # z.ai API client
 ├── profiles/domains/      # Domain Profile YAMLs (with inheritance)
 ├── task-templates/        # Atomic Task Template library (versioned)
 ├── task-instances/        # Generated Task Instances per project
 ├── mcd/                   # Main Context Documents per project
 ├── docs/                  # Implementation documentation
-└── .warpos/               # [Step 6] Staging area for execution plans
+└── .warpos/               # Staging area for execution plans
 ```
 
 ## 🚨 Critical Rules for This Project
