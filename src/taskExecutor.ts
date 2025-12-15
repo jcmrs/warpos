@@ -36,11 +36,22 @@ export type ExecutionPlan = {
  * - execute(): Apply the plan after GO/NO-GO approval
  */
 export class TaskExecutor {
-  private readonly warpDir = path.join(process.cwd(), '.warpos');
-  private readonly plansDir = path.join(this.warpDir, 'plans');
-  private readonly instanceStore = new TaskInstanceStore();
-  private readonly templateStore = new TaskTemplateStore();
-  private readonly profileStore = new DomainProfileStore();
+  private readonly instanceStore: TaskInstanceStore;
+  private readonly templateStore: TaskTemplateStore;
+  private readonly profileStore: DomainProfileStore;
+  private readonly plansDir: string;
+
+  constructor(
+    instanceStore: TaskInstanceStore,
+    templateStore: TaskTemplateStore,
+    profileStore: DomainProfileStore,
+    plansDir: string
+  ) {
+    this.instanceStore = instanceStore;
+    this.templateStore = templateStore;
+    this.profileStore = profileStore;
+    this.plansDir = plansDir;
+  }
 
   /**
    * Substitute variables in template strings with values from inputs.

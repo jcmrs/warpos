@@ -25,3 +25,9 @@ Thumbs.db
 # editors
 .vscode/
 .idea/
+
+# test coverage
+coverage/
+
+# temp files
+nul
